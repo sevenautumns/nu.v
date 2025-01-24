@@ -1,21 +1,30 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{OptionExt, Result};
 use graph::{Graph, GraphExt};
+use log::info;
 
 mod graph;
+mod nix_cli;
 
 fn main() -> Result<()> {
     colog::init();
     color_eyre::install()?;
 
+    let args: Vec<String> = std::env::args().collect();
+
+    let that_flake = args
+        .get(1)
+        .ok_or_eyre(format!("usage: {} <flake-url>", env!("CARGO_BIN_NAME")))?;
+
+    let flake_outputs = nix_cli::get_flake_output_derivations(that_flake)?;
+
     let mut graph = Graph::new();
 
-    let path = "/nix/store/yn1fkbzqij1wqsj6v0fhgpw0k0dwx102-microkit-sdk-1.4.1.drv";
-    graph.extend_from_store_path(path)?;
+    info!("building graph");
+    for flake_output in flake_outputs {
+        graph.extend_from_store_path(&flake_output.drv_path)?;
+    }
 
-    let path = "/nix/store/pkjvdd070h5rggfpk9zvdsxyqil8q67c-arm-trusted-firmware-zynqmp-aarch64-unknown-linux-gnu-xilinx-v2023.2.drv";
-    graph.extend_from_store_path(path)?;
-
-    println!("{}", graph.edge_count());
+    info!("built the following graph: {}", graph.edge_count());
 
     Ok(())
 }
